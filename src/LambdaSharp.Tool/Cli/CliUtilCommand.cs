@@ -150,9 +150,11 @@ namespace LambdaSharp.Tool.Cli {
                     subCmd.Description = "List all Lambda functions by CloudFormation stack";
                     var awsProfileOption = cmd.Option("--aws-profile|-P <NAME>", "(optional) Use a specific AWS profile from the AWS credentials file", CommandOptionType.SingleValue);
                     var awsRegionOption = cmd.Option("--aws-region <NAME>", "(optional) Use a specific AWS region (default: read from AWS profile)", CommandOptionType.SingleValue);
+                    var noAnsiOutputOption = subCmd.Option("--no-ansi", "(optional) Disable colored ANSI terminal output", CommandOptionType.NoValue);
 
                     // run command
                     subCmd.OnExecute(async () => {
+                        Settings.UseAnsiConsole = !noAnsiOutputOption.HasValue();
                         Console.WriteLine($"{app.FullName} - {subCmd.Description}");
                         await ListLambdasAsync(
                             awsProfileOption.Value(),
