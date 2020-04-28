@@ -735,10 +735,21 @@ namespace LambdaSharp.Tool.Cli {
                 .Where(stackWithFunction => stackWithFunction.Functions.Any())
                 .OrderBy(stackWithFunction => stackWithFunction.Stack.StackName)
             ) {
-
-                // fetch all lambda resources in stack
                 Console.WriteLine();
-                Console.WriteLine($"{stackWithFunctions.Stack.StackName}:");
+
+                // check if CloudFormation stack was deployed by LambdaSharp
+                var moduleInfoOutput = stackWithFunctions.Stack.Outputs
+                    .FirstOrDefault(output => output.OutputKey == "Module")
+                    ?.OutputValue;
+                Console.Write($"{Settings.OutputColor}{stackWithFunctions.Stack.StackName}{Settings.ResetColor}");
+                if(ModuleInfo.TryParse(moduleInfoOutput, out var moduleInfo)) {
+                    var lambdaSharpToolOutput = stackWithFunctions.Stack.Outputs
+                        .FirstOrDefault(output => output.OutputKey == "LambdaSharpTool")
+                        ?.OutputValue;
+                    Console.Write($" ({Settings.InfoColor}{moduleInfo.FullName}:{moduleInfo.Version}{Settings.ResetColor}) [lash {lambdaSharpToolOutput ?? "pre-0.6.1"}]");
+                }
+                Console.WriteLine(":");
+
                 foreach(var function in stackWithFunctions.Functions.OrderBy(function => function.Name)) {
                     PrintFunction(function.Name, function.Configuration);
                 }
