@@ -668,30 +668,56 @@ namespace LambdaSharp.Tool.Cli {
             await InitializeAwsProfile(awsProfile, awsRegion: awsRegion, allowCaching: true);
             var cfnClient = new AmazonCloudFormationClient();
             var lambdaClient = new AmazonLambdaClient();
+            var logsClient = new AmazonCloudWatchLogsClient();
 
-            // fetch all lambdas on account
-            var orphanedFunctions = (await ListLambdasAsync())
-                .ToDictionary(function => function.FunctionArn, function => function);
+            // fetch all Lambda functions on account
+            var globalFunctions = (await ListLambdasAsync())
+                .ToDictionary(function => function.FunctionName, function => function);
 
             // fetch all stacks on account
             var stacks = await ListStacksAsync();
-            Console.WriteLine($"Analyzing {stacks.Count():N0} CloudFormation stacks and {orphanedFunctions.Count():N0} Lambda functions");
+            Console.WriteLine($"Analyzing {stacks.Count():N0} CloudFormation stacks and {globalFunctions.Count():N0} Lambda functions");
 
-            var stacksWithFunctions = stacks.Zip(
-                await Task.WhenAll(stacks.Select(stack => ListStackFunctionsAsync(stack.StackId))),
-                (stack, stackFunctions) => (Stack: stack, Functions: stackFunctions)
-            ).ToList();
+            // fetch most recent CloudWatch log stream for each Lambda function
+            var logStreamsTask = Task.Run(async () => (await Task.WhenAll(globalFunctions.Select(async kv => {
+                    try {
+                        var response = await logsClient.DescribeLogStreamsAsync(new DescribeLogStreamsRequest {
+                            Descending = true,
+                            LogGroupName = $"/aws/lambda/{kv.Value.FunctionName}",
+                            OrderBy = OrderBy.LastEventTime,
+                            Limit = 1
+                        });
+                        return (Name: kv.Value.FunctionName, Streams: response.LogStreams.FirstOrDefault());
+                    } catch {
+
+                        // log group doesn't exist
+                        return (Name: kv.Value.FunctionName, Streams: null);
+                    }
+                }))).ToDictionary(tuple => tuple.Name, tuple => tuple.Streams)
+            );
+
+            // fetch all functions belonging to a CloudFormation stack
+            var stacksWithFunctionsTask = Task.Run(async () => stacks.Zip(
+                    await Task.WhenAll(stacks.Select(stack => ListStackFunctionsAsync(stack.StackId))),
+                    (stack, stackFunctions) => (Stack: stack, Functions: stackFunctions)
+                ).ToList()
+            );
+
+            // wait for both fetch operations to finish
+            await Task.WhenAll(logStreamsTask, stacksWithFunctionsTask);
+            var logStreams = logStreamsTask.Result;
+            var stacksWithFunctions = stacksWithFunctionsTask.Result;
 
             // remove all the functions that were discovered inside a stack from the orphaned list of functions
             foreach(var function in stacksWithFunctions.SelectMany(stackWithFunctions => stackWithFunctions.Functions)) {
-                orphanedFunctions.Remove(function.Configuration.FunctionArn);
+                globalFunctions.Remove(function.Configuration.FunctionName);
             }
 
             // compute the max width for the function name (use logical ID if it belongs to the stack)
             var maxFunctionNameWidth = stacksWithFunctions
                 .SelectMany(stackWithFunctions => stackWithFunctions.Functions)
                 .Select(function => function.Name.Length)
-                .Union(orphanedFunctions.Values.Select(function => function.FunctionName.Length))
+                .Union(globalFunctions.Values.Select(function => function.FunctionName.Length))
                 .Append(0)
                 .Max();
 
@@ -699,11 +725,12 @@ namespace LambdaSharp.Tool.Cli {
             var maxRuntimeWidth = stacksWithFunctions
                 .SelectMany(stackWithFunctions => stackWithFunctions.Functions)
                 .Select(stackFunction => stackFunction.Configuration.Runtime.ToString().Length)
-                .Union(orphanedFunctions.Values.Select(function => function.Runtime.ToString().Length))
+                .Union(globalFunctions.Values.Select(function => function.Runtime.ToString().Length))
                 .Append(0)
                 .Max();
 
             // print Lambda functions belonging to stacks
+            var showAsteriskExplanation = false;
             foreach(var stackWithFunctions in stacksWithFunctions
                 .Where(stackWithFunction => stackWithFunction.Functions.Any())
                 .OrderBy(stackWithFunction => stackWithFunction.Stack.StackName)
@@ -713,29 +740,23 @@ namespace LambdaSharp.Tool.Cli {
                 Console.WriteLine();
                 Console.WriteLine($"{stackWithFunctions.Stack.StackName}:");
                 foreach(var function in stackWithFunctions.Functions.OrderBy(function => function.Name)) {
-                    Console.Write("    ");
-                    Console.Write(function.Name);
-                    Console.Write("".PadRight(maxFunctionNameWidth - function.Name.Length + 4));
-                    Console.Write(function.Configuration.Runtime);
-                    Console.Write("".PadRight(maxRuntimeWidth - function.Configuration.Runtime.ToString().Length + 4));
-                    Console.Write(DateTimeOffset.Parse(function.Configuration.LastModified).ToString("yyyy-MM-dd"));
-                    Console.WriteLine();
+                    PrintFunction(function.Name, function.Configuration);
                 }
             }
 
             // print orphan Lambda functions
-            if(orphanedFunctions.Any()) {
+            if(globalFunctions.Any()) {
                 Console.WriteLine();
                 Console.WriteLine("ORPHANS:");
-                foreach(var function in orphanedFunctions.Values.OrderBy(function => function.FunctionName)) {
-                    Console.Write("    ");
-                    Console.Write(function.FunctionName);
-                    Console.Write("".PadRight(maxFunctionNameWidth - function.FunctionName.Length + 4));
-                    Console.Write(function.Runtime);
-                    Console.Write("".PadRight(maxRuntimeWidth - function.Runtime.ToString().Length + 4));
-                    Console.Write(DateTimeOffset.Parse(function.LastModified).ToString("yyyy-MM-dd"));
-                    Console.WriteLine();
+                foreach(var function in globalFunctions.Values.OrderBy(function => function.FunctionName)) {
+                    PrintFunction(function.FunctionName, function);
                 }
+            }
+
+            // show optional (*) explanation if it was printed
+            if(showAsteriskExplanation) {
+                Console.WriteLine();
+                Console.WriteLine("(*) Showing Lambda last-modified date, because last event timestamp in CloudWatch log stream is not available");
             }
 
             // local functions
@@ -768,23 +789,37 @@ namespace LambdaSharp.Tool.Cli {
                 };
                 do {
                     var response = await cfnClient.ListStackResourcesAsync(request);
-                    var lambdaSummaries = response.StackResourceSummaries
-                            .Where(resourceSummary => resourceSummary.ResourceType  == "AWS::Lambda::Function");
                     result.AddRange(
-                        lambdaSummaries.Zip(
-                            (await Task.WhenAll(
-                                lambdaSummaries
-                                .Select(resourceSummary => lambdaClient.GetFunctionAsync(new GetFunctionRequest {
-                                    FunctionName = resourceSummary.PhysicalResourceId
-                                }))
-                            ))
-                            .Select(response => response.Configuration),
-                            (first, second) => (first.LogicalResourceId, second)
-                        )
+                        response.StackResourceSummaries
+                            .Where(resourceSummary => resourceSummary.ResourceType  == "AWS::Lambda::Function")
+                            .Select(summary => {
+                                globalFunctions.TryGetValue(summary.PhysicalResourceId, out var configuration);
+                                return (Name: summary.LogicalResourceId, Configuration: configuration);
+                            })
+                            .Where(tuple => tuple.Configuration != null)
                     );
                     request.NextToken = response.NextToken;
                 } while(request.NextToken != null);
                 return result;
+            }
+
+            void PrintFunction(string name, FunctionConfiguration function) {
+                Console.Write("    ");
+                Console.Write(name);
+                Console.Write("".PadRight(maxFunctionNameWidth - name.Length + 4));
+                Console.Write(function.Runtime);
+                Console.Write("".PadRight(maxRuntimeWidth - function.Runtime.ToString().Length + 4));
+                if(
+                    !logStreams.TryGetValue(function.FunctionName, out var logStream)
+                    || (logStream?.LastEventTimestamp == null)
+                ) {
+                    Console.Write(DateTimeOffset.Parse(function.LastModified).ToString("yyyy-MM-dd"));
+                    Console.Write("(*)");
+                    showAsteriskExplanation = true;
+                } else {
+                    Console.Write(logStream.LastEventTimestamp.ToString("yyyy-MM-dd"));
+                }
+                Console.WriteLine();
             }
         }
     }
