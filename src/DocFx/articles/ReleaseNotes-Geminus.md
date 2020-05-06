@@ -187,6 +187,7 @@ The `lash encrypt` command now has a support for decrypting an encrypted secret 
 * LambdaSharp CLI
     * Fixed a bug with `--aws-profile` and `--aws-region` options for `last util list-lambdas` and `lash util delete-orphan-logs`.
     * Fixed a rate limiting issue with `last util list-lambdas`.
+    * Fixed an issue where the `--aws-region` command option didn't always work as expected.
 
 ### (v0.7.0.16) - 2020-05-01
 

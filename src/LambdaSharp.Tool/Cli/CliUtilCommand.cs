@@ -26,6 +26,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Amazon;
 using Amazon.APIGateway;
 using Amazon.APIGateway.Model;
 using Amazon.ApiGatewayV2;
@@ -274,7 +275,7 @@ namespace LambdaSharp.Tool.Cli {
 
             // initialize AWS profile
             await InitializeAwsProfile(awsProfile, awsRegion: awsRegion, allowCaching: true);
-            var logsClient = new AmazonCloudWatchLogsClient();
+            var logsClient = new AmazonCloudWatchLogsClient(AWSConfigs.RegionEndpoint);
 
             // delete orphaned logs
             var totalLogGroups = 0;
@@ -293,7 +294,7 @@ namespace LambdaSharp.Tool.Cli {
             async Task DeleteOrphanLambdaLogsAsync() {
 
                 // list all lambda functions
-                var lambdaClient = new AmazonLambdaClient();
+                var lambdaClient = new AmazonLambdaClient(AWSConfigs.RegionEndpoint);
                 var request = new ListFunctionsRequest { };
                 var lambdaLogGroupNames = new HashSet<string>();
                 do {
@@ -315,7 +316,7 @@ namespace LambdaSharp.Tool.Cli {
             async Task DeleteOrphanApiGatewayLogs() {
 
                 // list all API Gateway V1 instances
-                var apiGatewayClient = new AmazonAPIGatewayClient();
+                var apiGatewayClient = new AmazonAPIGatewayClient(AWSConfigs.RegionEndpoint);
                 var request = new GetRestApisRequest { };
                 var apiGatewayGroupNames = new List<string>();
                 do {
@@ -335,7 +336,7 @@ namespace LambdaSharp.Tool.Cli {
             async Task DeleteOrphanApiGatewayV2Logs() {
 
                 // list all API Gateway V2 instances
-                var apiGatewayV2Client = new AmazonApiGatewayV2Client();
+                var apiGatewayV2Client = new AmazonApiGatewayV2Client(AWSConfigs.RegionEndpoint);
                 var request = new GetApisRequest { };
                 var apiGatewayGroupNames = new List<string>();
                 do {
@@ -668,9 +669,9 @@ namespace LambdaSharp.Tool.Cli {
 
             // initialize AWS profile
             await InitializeAwsProfile(awsProfile, awsRegion: awsRegion, allowCaching: true);
-            var cfnClient = new AmazonCloudFormationClient();
-            var lambdaClient = new AmazonLambdaClient();
-            var logsClient = new AmazonCloudWatchLogsClient();
+            var cfnClient = new AmazonCloudFormationClient(AWSConfigs.RegionEndpoint);
+            var lambdaClient = new AmazonLambdaClient(AWSConfigs.RegionEndpoint);
+            var logsClient = new AmazonCloudWatchLogsClient(AWSConfigs.RegionEndpoint);
 
             // fetch all Lambda functions on account
             var globalFunctions = (await ListLambdasAsync())
