@@ -801,17 +801,27 @@ namespace LambdaSharp.Tool.Cli {
                     StackName = stackName
                 };
                 do {
-                    var response = await cfnClient.ListStackResourcesAsync(request);
-                    result.AddRange(
-                        response.StackResourceSummaries
-                            .Where(resourceSummary => resourceSummary.ResourceType  == "AWS::Lambda::Function")
-                            .Select(summary => {
-                                globalFunctions.TryGetValue(summary.PhysicalResourceId, out var configuration);
-                                return (Name: summary.LogicalResourceId, Configuration: configuration);
-                            })
-                            .Where(tuple => tuple.Configuration != null)
-                    );
-                    request.NextToken = response.NextToken;
+                    var attempts = 0;
+                again:
+                    try {
+                        var response = await cfnClient.ListStackResourcesAsync(request);
+                        result.AddRange(
+                            response.StackResourceSummaries
+                                .Where(resourceSummary => resourceSummary.ResourceType  == "AWS::Lambda::Function")
+                                .Select(summary => {
+                                    globalFunctions.TryGetValue(summary.PhysicalResourceId, out var configuration);
+                                    return (Name: summary.LogicalResourceId, Configuration: configuration);
+                                })
+                                .Where(tuple => tuple.Configuration != null)
+                        );
+                        request.NextToken = response.NextToken;
+                    } catch(AmazonCloudFormationException e) when(
+                        (e.Message == "Rate exceeded")
+                        && (++attempts < 30)
+                    ) {
+                        await Task.Delay(TimeSpan.FromSeconds(attempts));
+                        goto again;
+                    }
                 } while(request.NextToken != null);
                 return result;
             }
