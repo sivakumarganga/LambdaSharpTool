@@ -69,8 +69,8 @@ namespace LambdaSharp.Tool.Cli {
                     subCmd.HelpOption();
                     subCmd.Description = "Delete orphaned Lambda and API Gateway V1/V2 CloudWatch logs";
                     var dryRunOption = subCmd.Option("--dryrun", "(optional) Check which logs to delete without deleting them", CommandOptionType.NoValue);
-                    var awsProfileOption = cmd.Option("--aws-profile|-P <NAME>", "(optional) Use a specific AWS profile from the AWS credentials file", CommandOptionType.SingleValue);
-                    var awsRegionOption = cmd.Option("--aws-region <NAME>", "(optional) Use a specific AWS region (default: read from AWS profile)", CommandOptionType.SingleValue);
+                    var awsProfileOption = subCmd.Option("--aws-profile|-P <NAME>", "(optional) Use a specific AWS profile from the AWS credentials file", CommandOptionType.SingleValue);
+                    var awsRegionOption = subCmd.Option("--aws-region <NAME>", "(optional) Use a specific AWS region (default: read from AWS profile)", CommandOptionType.SingleValue);
 
                     // run command
                     subCmd.OnExecute(async () => {
@@ -148,8 +148,8 @@ namespace LambdaSharp.Tool.Cli {
                 cmd.Command("list-lambdas", subCmd => {
                     subCmd.HelpOption();
                     subCmd.Description = "List all Lambda functions by CloudFormation stack";
-                    var awsProfileOption = cmd.Option("--aws-profile|-P <NAME>", "(optional) Use a specific AWS profile from the AWS credentials file", CommandOptionType.SingleValue);
-                    var awsRegionOption = cmd.Option("--aws-region <NAME>", "(optional) Use a specific AWS region (default: read from AWS profile)", CommandOptionType.SingleValue);
+                    var awsProfileOption = subCmd.Option("--aws-profile|-P <NAME>", "(optional) Use a specific AWS profile from the AWS credentials file", CommandOptionType.SingleValue);
+                    var awsRegionOption = subCmd.Option("--aws-region <NAME>", "(optional) Use a specific AWS region (default: read from AWS profile)", CommandOptionType.SingleValue);
                     var noAnsiOutputOption = subCmd.Option("--no-ansi", "(optional) Disable colored ANSI terminal output", CommandOptionType.NoValue);
 
                     // run command
