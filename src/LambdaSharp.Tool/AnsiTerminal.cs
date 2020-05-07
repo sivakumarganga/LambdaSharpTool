@@ -91,14 +91,17 @@ namespace LambdaSharp.Tool {
             if(_enableAnsiOutput && RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
                 SwitchWindowsConsoleToAnsi();
             }
+            if(_enableAnsiOutput) {
+                Console.Write(HideCursor);
+            }
         }
 
         //--- Methods ---
         public void Dispose() {
-            RestoreWindowsConsoleSettings();
             if(_enableAnsiOutput) {
                 Console.Write(ShowCursor);
             }
+            RestoreWindowsConsoleSettings();
         }
 
         private void SwitchWindowsConsoleToAnsi() {
