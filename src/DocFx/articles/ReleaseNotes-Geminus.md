@@ -189,6 +189,7 @@ The `lash encrypt` command now has a support for decrypting an encrypted secret 
     * Fixed a rate limiting issue with `last util list-lambdas`.
     * Fixed an issue where the `--aws-region` command option didn't always work as expected.
     * Fixed an issue with the cursor disappearing when `lash` exits.
+    * Fixed an issue where `--force-deploy` did not allow downgrading a CloudFormation stack with an earlier module version.
 
 ### (v0.7.0.16) - 2020-05-01
 
