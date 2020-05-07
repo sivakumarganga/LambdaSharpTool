@@ -83,6 +83,7 @@ namespace LambdaSharp.Tool {
         private bool _switchedToAnsi;
         private IntPtr _consoleStandardOut;
         private uint _originaConsoleMode;
+        private bool _cursorVisible;
 
         //--- Constructors ---
         public AnsiTerminal(bool enableAnsiOutput) {
@@ -90,11 +91,13 @@ namespace LambdaSharp.Tool {
             if(_enableAnsiOutput && RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
                 SwitchWindowsConsoleToAnsi();
             }
+            _cursorVisible = Console.CursorVisible;
         }
 
         //--- Methods ---
         public void Dispose() {
             RestoreWindowsConsoleSettings();
+            Console.CursorVisible = _cursorVisible;
         }
 
         private void SwitchWindowsConsoleToAnsi() {
