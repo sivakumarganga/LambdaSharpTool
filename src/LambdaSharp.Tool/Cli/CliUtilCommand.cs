@@ -166,6 +166,7 @@ namespace LambdaSharp.Tool.Cli {
 
                 // show help text if no sub-command is provided
                 cmd.OnExecute(() => {
+                    Program.ShowHelp = true;
                     Console.WriteLine(cmd.GetHelpText());
                 });
             });
