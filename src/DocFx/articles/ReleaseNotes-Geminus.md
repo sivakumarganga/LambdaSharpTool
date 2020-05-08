@@ -182,6 +182,11 @@ The `lash encrypt` command now has a support for decrypting an encrypted secret 
 
 ### (v0.7.0.17) - 2020-05-07
 
+#### New Features
+
+* LambdaSharp CLI
+    * Enhanced validation of existing CloudFormation stack to ensure all artifacts are present before performing an update.
+
 #### Fixes
 
 * LambdaSharp CLI
